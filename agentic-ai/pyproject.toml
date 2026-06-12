@@ -1,0 +1,56 @@
+[project]
+name = "agentic-ai"
+version = "0.1.0"
+description = "A complete, runnable agentic AI course — courses, notebooks, and portfolio projects."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+# The real LLM backend. Without it (or without OPENAI_API_KEY) everything falls
+# back to the deterministic offline MockLLM, so the whole course runs with no key.
+openai = ["openai>=1.30", "python-dotenv>=1.0"]
+# Course 3: agentic RAG (vector DB) and SQL database agents.
+rag = ["chromadb>=0.5"]
+db = ["sqlalchemy>=2.0"]
+# Course 3: web-search agents.
+web = ["tavily-python>=0.3", "httpx>=0.27"]
+# Notebooks + plotting.
+viz = ["matplotlib>=3.8"]
+# Dev tooling.
+dev = ["pytest>=8.0", "ruff>=0.6", "jupyter>=1.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-m 'not todo'"
+markers = [
+    "todo: project exercises that fail until you implement the TODOs",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Notebooks are pedagogical (per-cell imports, demonstrative lambdas) and are validated by
+# notebooks/build_all.py (JSON) + notebooks/_exec_check.py (executes every cell). Their logic
+# mirrors the linted source builders in notebooks/src/.
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"notebooks/src/*" = ["E501"]
+# Starter scaffolds import helpers (system/user/extract_json) as hints for the student to use; the
+# unimplemented stubs don't reference them yet.
+"projects/*/starter.py" = ["F401"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shared"]
