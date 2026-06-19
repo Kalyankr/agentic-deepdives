@@ -1,0 +1,89 @@
+#separator:Comma
+#html:false
+#columns:Front,Back,Tags
+#tags column:3
+"Self-attention in one sentence","Each token's query is compared (dot product) to every key to get softmax weights, then takes that weighted sum of values — a content-based mixture of all positions.",stage1 fundamentals
+"Why divide attention scores by sqrt(d_k)?","q.k of d_k unit-variance terms has variance d_k (std sqrt(d_k)); dividing keeps logits O(1) so softmax isn't saturated and gradients don't vanish.",stage1 math
+"Self-attention complexity in sequence length","Compute O(T^2 * d); memory O(T^2) for the score matrix — quadratic in T.",stage1 fundamentals
+"Parameters per transformer block","~12 d^2: attention 4 d^2 (Q,K,V,O) + MLP 8 d^2 (up d x 4d, down 4d x d).",stage1 math
+"Forward FLOPs per token","~2N for an N-parameter model (1 multiply + 1 add per param); backward ~2x, so training ~6N.",stage1 math
+"Pre-norm vs post-norm","Modern LLMs use pre-norm: x + Sublayer(LN(x)) keeps a clean identity residual so gradients reach depth; post-norm needs careful warmup.",stage1 core
+"Why did RoPE win?","Encodes relative position directly in the QK dot product, adds no parameters, and supports context extension (interpolation/YaRN).",stage1 core
+"Where do most transformer params live?","The MLP (8 d^2) vs attention (4 d^2) — about two-thirds of block params and most stored knowledge.",stage1 core
+"Purpose of the KV cache","Stores past keys/values so each decode step computes K/V for only the new token — O(T) per step instead of recomputing O(T^2).",stage1 core
+"Softmax max-subtraction trick","Subtract max(x) before exp: result is shift-invariant, prevents fp16 overflow, and makes the largest exponent equal 1.",stage1 math
+"Gradient of softmax cross-entropy wrt logits","softmax(z) - onehot(y) — simply predicted minus target.",stage1 math
+"One design choice behind many dumb failures","Tokenization: the token (not the character) is the atom — hence poor spelling, digit arithmetic, and whitespace/glitch tokens.",stage1 debug
+"Chinchilla compute-optimal rule","About 20 tokens per parameter; scale N and D together. GPT-3 was under-trained at ~1.7 tokens/param.",stage2 core
+"The C = 6ND relation","~6 FLOPs per parameter per token (2 forward + 4 backward) ties compute, parameters, and tokens.",stage2 math
+"AdamW mixed-precision memory per parameter","weights 2 + grads 2 + optimizer 12 (fp32 master 4 + m 4 + v 4) = 16 bytes/param.",stage2 math
+"VRAM to full-fine-tune a 7B (bf16+AdamW)","params 14 + grads 14 + optimizer 84 = ~112 GB before activations.",stage2 math
+"Why bf16 over fp16 for training","bf16 has fp32's 8-bit exponent — huge range, rarely overflows, no loss scaling; fp16 (5 exponent bits) overflows easily.",stage2 core
+"ZeRO stages 1/2/3","Stage 1 shards optimizer state; stage 2 also gradients; stage 3 (≈FSDP) also parameters, gathered on demand.",stage2 core
+"Four training memory components","Parameters, gradients, optimizer state, and activations.",stage2 fundamentals
+"Comms pattern: TP vs PP vs DP","TP: all-reduce activations every layer (intra-node/NVLink); PP: point-to-point between stages plus a bubble; DP: all-reduce gradients once per step.",stage2 core
+"Gradient checkpointing tradeoff","Discard activations in the forward pass and recompute in backward: ~33% more compute for large activation-memory savings.",stage2 core
+"Why train past the Chinchilla optimum","Inference economics — a smaller, over-trained model is cheaper to serve at scale (the Llama philosophy).",stage2 core
+"What perplexity means","e^(cross-entropy); the effective branching factor. PPL 20 = as uncertain as choosing among 20 tokens.",stage2 fundamentals
+"LoRA in one sentence","Freeze W0 and learn a low-rank update dW = B A added to it, training under 1% of parameters.",stage3 fundamentals
+"LoRA trainable params for a d x d matrix at rank r","2 d r vs d^2; ratio 2r/d (e.g. d=4096, r=8 gives ~0.4%).",stage3 math
+"QLoRA's three tricks","NF4 4-bit quantization, double quantization, and paged optimizers.",stage3 core
+"DPO's implicit reward","r(x,y) = beta * log(pi_theta / pi_ref); substituting into Bradley-Terry gives a loss on chosen vs rejected logprobs.",stage3 math
+"Why mask prompt tokens in SFT loss","So the model learns to generate the response, not predict the user's prompt — prevents parroting.",stage3 fundamentals
+"Role of the KL penalty in RLHF","Anchors the policy to the reference (SFT) model; without it the policy reward-hacks the imperfect reward model.",stage3 core
+"Why LoRA works","Fine-tuning has low intrinsic dimension — the weight update dW is approximately low-rank.",stage3 core
+"QLoRA 7B memory vs full FT","4-bit base ~3.5 GB + small adapters ~ a few GB, versus ~112 GB for full fine-tuning.",stage3 math
+"Reward hacking and guards","Policy exploits RM flaws for high score without quality; guard with KL penalty, early stopping, and a stronger/ensembled RM.",stage3 core
+"DPO vs KTO vs ORPO","DPO needs paired preferences; KTO needs only binary good/bad labels; ORPO merges SFT + preference in one stage with no reference model.",stage3 core
+"Fixing catastrophic forgetting","Use PEFT/LoRA, lower LR, fewer epochs, and replay general data.",stage3 debug
+"Limits of perplexity as a metric","Only measures language-model fit, is not comparable across tokenizers, and says nothing about helpfulness, correctness, or safety.",stage4 fundamentals
+"Unbiased pass@k estimator","pass@k = 1 - C(n-c, k) / C(n, k), from n>=k samples with c correct.",stage4 stats
+"Why pairwise comparison beats absolute scoring","Humans and judges are noisy on absolute scales but consistent on relative judgments — higher agreement, and it aggregates via Elo.",stage4 core
+"Main LLM-judge biases and fixes","Position (swap order and average), length/verbosity (length-control), self-preference (use a different or ensembled judge).",stage4 core
+"RAG: the two things to evaluate separately","Retrieval (recall@k, MRR, nDCG) and generation (faithfulness + answer relevance).",stage4 fundamentals
+"Goodhart's law in evaluation","When a measure becomes a target it stops being a good measure — optimizing a benchmark games it.",stage4 core
+"How to compute a bootstrap CI","Resample per-item scores with replacement n times, recompute the metric, repeat ~10k times, take the 2.5 and 97.5 percentiles.",stage4 stats
+"Detecting benchmark contamination","N-gram/MinHash overlap of eval items against training data; also compare original vs freshly written equivalents.",stage4 core
+"What calibration means","The model's stated confidence matches its empirical accuracy; measured with ECE / reliability diagrams.",stage4 core
+"MRR vs nDCG","MRR = 1/rank of the first relevant result (one correct answer); nDCG handles graded relevance where order matters.",stage4 stats
+"The two phases of autoregressive generation","Prefill (parallel prompt pass, compute-bound) and decode (one token at a time, memory-bandwidth-bound).",stage5 fundamentals
+"Why decode is memory-bandwidth-bound","Each token is a tiny GEMV that must still stream all model weights from HBM — very low arithmetic intensity.",stage5 core
+"KV-cache size formula","2 * L * n_kv * d_head * T * B * bytes_per_elem; linear in context length and batch.",stage5 math
+"MQA vs GQA","MQA: one shared KV head (max savings, quality drop); GQA: grouped KV heads (most savings, near-MHA quality) — the modern default.",stage5 core
+"What FlashAttention does","Tiles Q/K/V in SRAM with an online softmax and never materializes the T x T matrix — same math, far less HBM IO.",stage5 core
+"Why speculative decoding preserves the distribution","Accept a draft token with prob min(1, p_target/p_draft), else resample from the residual — provably matches the target distribution.",stage5 core
+"int4 vs fp16 decode speedup","~4x less weight data moved per token, so ~4x faster in the bandwidth-bound limit.",stage5 math
+"What PagedAttention does","Stores the KV cache in fixed-size blocks (like OS pages) to eliminate fragmentation and pack many more concurrent requests.",stage5 core
+"Why batching raises decode utilization","Single-token intensity ~2/b; batching B requests gives ~2B/b for the same weight read, moving toward compute-bound.",stage5 math
+"TTFT vs TPOT vs throughput","Time-to-first-token (prefill latency), time-per-output-token (decode speed), and total tokens/sec across requests.",stage5 fundamentals
+"Prompt vs RAG vs fine-tune","Prompt to steer; RAG for changing/proprietary knowledge with citations; fine-tune for behavior/format/style.",stage6 core
+"Why hybrid search","Dense embeddings capture semantics; sparse/BM25 captures exact keywords — fuse (e.g. RRF) to cover both failure modes.",stage6 core
+"What reranking does","A cross-encoder re-scores top-N candidates by jointly reading query+doc — precision at the top, at the cost of latency.",stage6 fundamentals
+"Localizing a wrong RAG answer","Was the gold chunk retrieved? If yes it's a generation/grounding issue; if no it's retrieval (chunking, embeddings, or query).",stage6 core
+"RAG chunking tradeoff","Large chunks keep context but add distractors; small chunks are precise but split answers; overlap mitigates at a storage cost.",stage6 core
+"The ReAct pattern","Interleave Reason (thought), Act (tool call), and Observation (result) in a loop until the model can answer.",stage6 fundamentals
+"Containing agent failures","Step/time/cost limits, tool schemas + argument validation, least privilege, and human confirmation for irreversible actions.",stage6 core
+"What HyDE does","Generate a hypothetical answer and embed that to retrieve — it is semantically closer to target documents than a short question.",stage6 core
+"When semantic caching helps","When traffic is semantically repetitive (FAQs); cache by embedding similarity so paraphrases hit — needs a threshold and TTL.",stage6 core
+"When an agent is the wrong choice","When you need determinism, low latency, predictable cost, and debuggability — use a fixed pipeline instead.",stage6 core
+"What a Mixture-of-Experts model does","A router sends each token to the top-k of E expert MLPs — decoupling total parameters (capacity) from per-token FLOPs.",stage7 fundamentals
+"Why MoEs are harder to serve","All experts must stay resident in memory, routing needs all-to-all comms, and batching is irregular.",stage7 core
+"Lost in the middle","Models use information best at the start and end of long context and worst in the middle — a U-shaped recall curve.",stage7 core
+"Extending context without full retraining","Position interpolation / NTK-aware / YaRN scaling to fit angles into the trained range, plus light continued pretraining.",stage7 core
+"ORM vs PRM","An outcome reward model scores the final answer; a process reward model scores each reasoning step (dense feedback, catches bad process).",stage7 core
+"Best-of-n accuracy with a perfect verifier","1 - (1-p)^n, where p is per-sample success probability.",stage7 math
+"What self-consistency does","Sample N chain-of-thought paths and take the majority-vote answer — no external verifier needed.",stage7 core
+"What CLIP's contrastive objective learns","Matching image-text pairs get high cosine similarity and mismatches low — producing a shared embedding space.",stage7 core
+"LLaVA-style VLM architecture","Frozen vision encoder -> projector (MLP) -> LLM; projected patches become visual tokens prepended to text.",stage7 core
+"What model collapse is","Recursively training on model-generated data loses the tails and diversity; avoid with verifiable filtering, diversity, and real-data mixing.",stage7 core
+"What an induction head does","On a pattern [A][B]...[A] it attends to the token after the first A and predicts B — the basis of in-context learning.",stage7 core
+"What prompt injection is","Adversarial text in the input overrides the developer's instructions; the model can't separate instructions from data.",stage8 fundamentals
+"Direct vs indirect prompt injection","Direct: the user types it. Indirect: it is planted in third-party content (web, PDF, retrieved doc) that a normal user unknowingly triggers.",stage8 fundamentals
+"Why LLMs can't separate instructions from data","Everything — system prompt, user input, retrieved docs — is one uniform token stream with no privilege boundary.",stage8 fundamentals
+"What excessive agency is","Giving the model more tools, permissions, or autonomy than needed; when injected, it turns a text bug into real-world damage.",stage8 fundamentals
+"What insecure output handling is","Treating model output as trusted (exec/SQL/HTML) — instead sanitize, parameterize, and sandbox it.",stage8 core
+"Why indirect injection is dangerous in RAG/agents","The model auto-ingests external content and can act on it via tools — enabling silent hijack and data exfiltration.",stage8 core
+"Defense-in-depth against injection","Framing/spotlighting untrusted content, input/output filters, least privilege + tool allow-lists, human confirmation, egress controls, monitoring.",stage8 core
+"Least privilege for agent tools","Grant minimum scope: read-only where possible, narrowly-scoped credentials, rate/spend limits — to shrink the blast radius.",stage8 core
+"Fixing training-data regurgitation","Deduplicate, filter/scrub PII, use DP training, add output filters, and seed canaries to measure the extraction rate.",stage8 core
+"Top 3 OWASP-LLM risks for an agentic RAG app","Prompt injection, excessive agency, and sensitive information disclosure.",stage8 core

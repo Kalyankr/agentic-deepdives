@@ -1,0 +1,67 @@
+#separator:Comma
+#html:false
+#notetype:Cloze
+#columns:Text,Extra,Tags
+#tags column:3
+"Scaled dot-product attention: Attention(Q,K,V) = softmax(Q K^T / {{c1::sqrt(d_k)}}) V","The scale keeps logit variance ~1 so softmax doesn't saturate.",stage1 cloze math
+"Attention scores are divided by 1/sqrt(d_k) because a dot product of d_k unit-variance terms has variance {{c1::d_k}} and standard deviation {{c2::sqrt(d_k)}}.","",stage1 cloze math
+"A transformer block has about {{c1::12}} d^2 params: attention {{c2::4}} d^2 (Q,K,V,O) and MLP {{c3::8}} d^2.","",stage1 cloze math
+"FLOPs per token: forward ~ {{c1::2N}}, backward ~ {{c2::4N}}, so training ~ {{c3::6N}} for an N-parameter model.","",stage1 cloze math
+"The gradient of softmax cross-entropy w.r.t. logits is {{c1::softmax(z) - onehot(y)}}.","Predicted minus target.",stage1 cloze math
+"Self-attention has time complexity {{c1::O(T^2 d)}} and memory {{c2::O(T^2)}} in sequence length T.","",stage1 cloze math
+"Modern LLMs use {{c1::pre}}-norm, computing x + Sublayer(LN(x)) for a clean identity residual path.","",stage1 cloze core
+"RoPE encodes {{c1::relative}} position inside the {{c2::QK dot product}} and adds {{c3::no}} extra parameters.","",stage1 cloze core
+"The softmax stability trick subtracts {{c1::max(x)}} before exp; it is {{c2::shift-invariant}} and prevents fp16 {{c3::overflow}}.","",stage1 cloze senior
+"Compute, parameters, and tokens are tied by C = {{c1::6ND}}.","About 6 FLOPs per parameter per token.",stage2 cloze math
+"Chinchilla-optimal scaling uses about {{c1::20}} tokens per parameter.","",stage2 cloze core
+"AdamW mixed-precision memory per param: weights {{c1::2}} + grads {{c2::2}} + optimizer {{c3::12}} = {{c4::16}} bytes.","Optimizer = fp32 master 4 + m 4 + v 4.",stage2 cloze math
+"Full fine-tuning a 7B model in bf16 + AdamW needs about {{c1::112}} GB (14 + 14 + 84) before activations.","",stage2 cloze math
+"bf16 keeps fp32's {{c1::8}}-bit exponent, so it rarely overflows and needs no {{c2::loss scaling}}.","",stage2 cloze core
+"Perplexity = {{c1::e^L}}, where L is the cross-entropy loss in nats.","",stage2 cloze math
+"With D ~ 20N at fixed compute, the optimal size is N ~ {{c1::sqrt(C/120)}}.","",stage2 cloze math
+"The factor 6 in C = 6ND splits into forward ~ {{c1::2}} and backward ~ {{c2::4}} FLOPs per param per token.","",stage2 cloze math
+"LoRA learns a low-rank update dW = {{c1::BA}}; for a d x d matrix it trains {{c2::2dr}} params, a ratio of {{c3::2r/d}}.","",stage3 cloze math
+"LoRA forward: h = {{c1::W0 x}} + (alpha/r) {{c2::B A x}}; A is {{c3::random}}-init, B is {{c4::zero}}-init.","",stage3 cloze coding
+"The reward-model (Bradley-Terry) loss is {{c1::-log sigmoid(r(x,y_w) - r(x,y_l))}}.","",stage3 cloze math
+"The DPO implicit reward is {{c1::beta log(pi / pi_ref)}}.","Substituted into Bradley-Terry to get the DPO loss.",stage3 cloze math
+"In the DPO loss, beta controls {{c1::preference strength vs drift}} and pi_ref {{c2::anchors}} the policy to the reference.","",stage3 cloze senior
+"QLoRA's three tricks: {{c1::NF4}} 4-bit quantization, {{c2::double quantization}}, and {{c3::paged optimizers}}.","",stage3 cloze core
+"7B fine-tuning memory: full ~ {{c1::112}} GB, LoRA ~ {{c2::15}} GB, QLoRA ~ {{c3::5}} GB.","",stage3 cloze math
+"In SFT, prompt-token labels are set to {{c1::-100}} so loss is computed only on the {{c2::response}}.","",stage3 cloze coding
+"Unbiased pass@k from n samples with c correct: pass@k = {{c1::1 - C(n-c,k)/C(n,k)}}.","",stage4 cloze stats
+"Best-of-n accuracy with a perfect verifier is {{c1::1 - (1-p)^n}}.","p is per-sample success probability.",stage4 cloze stats
+"Mean Reciprocal Rank = {{c1::1/rank}} of the first relevant result (0 if none).","",stage4 cloze stats
+"The standard error of an accuracy estimate is {{c1::sqrt(p(1-p)/n)}}.","",stage4 cloze stats
+"A bootstrap CI resamples per-item results with replacement and takes the {{c1::2.5}} and {{c2::97.5}} percentiles.","",stage4 cloze stats
+"Expected Calibration Error measures the gap between predicted {{c1::confidence}} and empirical {{c2::accuracy}}.","",stage4 cloze stats
+"KV-cache size = 2 x layers x {{c1::kv_heads}} x head_dim x {{c2::seq}} x batch x bytes.","Linear in sequence length.",stage5 cloze math
+"Speculative decoding accepts a draft token with probability {{c1::min(1, p_target/p_draft)}}, else resamples from the {{c2::residual}}.","Provably preserves the target distribution.",stage5 cloze math
+"A decode step has arithmetic intensity ~ {{c1::1}} FLOP/byte, making it {{c2::memory}}-bound.","",stage5 cloze math
+"Lower-bound decode latency per token ~ {{c1::weight bytes / HBM bandwidth}}.","",stage5 cloze math
+"Naive int8 weight quantization: scale = {{c1::max|W|/127}}, q = round(W / scale).","",stage5 cloze coding
+"MQA uses {{c1::one}} KV head and GQA uses a {{c2::few}} groups; both shrink the KV cache by the head ratio.","",stage5 cloze core
+"int4 weights move ~ {{c1::4}}x fewer bytes than fp16, giving up to {{c1::4}}x faster bandwidth-bound decode.","",stage5 cloze math
+"Reciprocal Rank Fusion scores a document as the sum of {{c1::1/(k + rank)}} across retrievers.","",stage6 cloze coding
+"Self-consistency samples N chain-of-thought answers and returns the {{c1::majority vote}}.","",stage6 cloze coding
+"An MoE routes each token to the top-{{c1::k}} experts, so per-token FLOPs scale with {{c2::k}}, not the total expert count.","",stage7 cloze moe
+"The MoE auxiliary {{c1::load-balancing}} loss prevents expert {{c2::collapse}}.","",stage7 cloze moe
+"RoPE position interpolation scales positions by {{c1::train_len / target_len}} before applying RoPE.","",stage7 cloze longcontext
+"Lost-in-the-middle is a {{c1::U-shaped}} recall curve: models use the {{c2::start}} and {{c3::end}} of long context better than the middle.","",stage7 cloze longcontext
+"CLIP is trained with a contrastive {{c1::InfoNCE}} objective on matched image-text pairs.","",stage7 cloze multimodal
+"An {{c1::induction head}} finds a prior occurrence of the current token and predicts what {{c2::followed}} it.","Basis of in-context learning.",stage7 cloze interp
+"{{c1::Indirect}} prompt injection plants instructions in third-party content like web pages, PDFs, or retrieved documents.","",stage8 cloze core
+"An agentic RAG app's top OWASP-LLM risks: {{c1::prompt injection}} (LLM01), {{c2::insecure output handling}} (LLM02), and {{c3::excessive agency}} (LLM08).","",stage8 cloze core
+"The principle of {{c1::least privilege}} limits an agent's tools to the minimal scoped permissions needed.","",stage8 cloze senior
+"Never run model output as {{c1::SQL/shell/eval}}; instead validate, escape, and {{c2::parameterize}} it.","Defends against insecure output handling.",stage8 cloze coding
+"In LLM serving, prefill is {{c1::compute}}-bound and sets TTFT, while decode is {{c2::memory-bandwidth}}-bound and sets TPOT.","",systemdesign cloze inference
+"Decode at batch 1 has arithmetic intensity about {{c1::1}}, so it is {{c2::memory}}-bound; batching B raises intensity toward {{c3::B}}.","",systemdesign cloze inference math
+"{{c1::Continuous}} (in-flight) batching lets finished sequences exit and queued ones join every step -- the biggest {{c2::throughput}} lever.","",systemdesign cloze inference
+"The KV cache grows with context x batch x layers x {{c1::KV-heads}}, so it -- not the weights -- caps {{c2::batch size}}.","",systemdesign cloze inference
+"Speculative decoding accepts a drafted token with probability {{c1::min(1, p_t/p_d)}} and resamples rejects from the residual.","Preserves the target distribution.",systemdesign cloze inference math
+"{{c1::PagedAttention}} stores the KV cache in non-contiguous pages with a block table, removing {{c2::fragmentation}} and enabling prefix sharing.","",systemdesign cloze inference
+"RAG access control must be enforced at {{c1::retrieval}}, never at {{c2::generation}}, because the model summarizes anything in its context.","",systemdesign cloze rag
+"Hybrid retrieval fuses dense and sparse rankings with Reciprocal Rank Fusion: score = sum of {{c1::1/(k+rank)}}.","Rank-based, no score calibration.",systemdesign cloze rag math
+"Evaluate RAG in two stages: retrieval with {{c1::recall@k}} and generation with {{c2::faithfulness}}.","",systemdesign cloze rag
+"Upgrading the embedding model invalidates every vector, so you re-index with a {{c1::dual-index}} build and an atomic {{c2::swap}}.","",systemdesign cloze rag
+"Design ChatGPT: the unit of work is a stateful, multi-second, {{c1::GPU}}-bound token {{c2::stream}}.","",systemdesign cloze chatgpt
+"History beyond the context window is handled with recent turns verbatim plus a rolling {{c1::summary}} plus retrieved {{c2::memory}} chunks.","",systemdesign cloze chatgpt
